@@ -15,6 +15,79 @@ Links:
 
 Under the hood, these packages run [Silero VAD](https://github.com/snakers4/silero-vad) [[1]](#1) using [ONNX Runtime Web](https://github.com/microsoft/onnxruntime/tree/main/js/web) / [ONNX Runtime Node.js](https://github.com/microsoft/onnxruntime/tree/main/js/node). Thanks a lot to them for making this possible.
 
+
+## Buildvoc Memex voice deployment
+
+This fork also carries the standalone Whisper/Memex voice integration under `voice-test/`. The authoritative deployment branch is **`staging`**.
+
+### Agent deployment rules
+
+- Deploy only the voice stack from this repository. Do not modify HedgeDoc, nodeBook, or the abandoned `android-debug` / port `:8767` path.
+- Live voice directory: `/data/projects/whisper/voice-test`
+- Whisper API dependency: `127.0.0.1:8765`
+- Voice service: `whisper-voice-test.service`
+- Voice UI: `http://192.168.1.142:8766/voice/`
+- Health check: `http://192.168.1.142:8766/health`
+- HedgeDoc used by the browser extension: `http://192.168.1.142:8180`
+- Chrome package: `voice-test/extensions/chrome/`
+- Firefox package: `voice-test/extensions/firefox/`
+- Preserve machine-local files outside `voice-test/`, including `/data/projects/whisper/common_vocabulary.txt`.
+- Back up the live files before replacing them. Restart only `whisper-voice-test.service` for voice-app changes.
+
+### Deploy on G3
+
+```bash
+cd /data/projects
+
+if [ ! -d vad-sync/.git ]; then
+  git clone -b staging https://github.com/buildvoc/vad.git vad-sync
+else
+  git -C vad-sync fetch origin
+  git -C vad-sync checkout staging
+  git -C vad-sync pull --ff-only origin staging
+fi
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+mkdir -p /backups/builds/vad-voice-"$STAMP"
+cp -a /data/projects/whisper/voice-test/.   /backups/builds/vad-voice-"$STAMP"/
+
+rsync -a --delete   --exclude='__pycache__'   --exclude='*.pyc'   --exclude='whisper-voice-test.service'   /data/projects/vad-sync/voice-test/   /data/projects/whisper/voice-test/
+
+python3 -m py_compile /data/projects/whisper/voice-test/app.py
+
+sudo systemctl restart whisper-voice-test.service
+sudo systemctl is-active whisper-voice-test.service
+curl -sS http://192.168.1.142:8766/health
+```
+
+The repository copy of `whisper-voice-test.service` is reference material. Do not overwrite the installed unit blindly; the live unit may contain machine-specific bind or environment settings.
+
+If the health check fails:
+
+```bash
+sudo systemctl status whisper-voice-test.service --no-pager -l
+sudo journalctl -u whisper-voice-test.service -n 100 --no-pager
+ss -ltnp | grep ':8766'
+```
+
+### Browser extensions
+
+For Chrome/Chromium, use `voice-test/extensions/chrome/`. Open `chrome://extensions`, enable Developer mode, then **Load unpacked** or **Reload**.
+
+For Firefox testing, use `voice-test/extensions/firefox/`. Open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select its `manifest.json`.
+
+The legacy `voice-test/extension/` directory is retained for compatibility; new deployments should use the browser-specific directories above.
+
+### Current voice-note format
+
+The current voice backend includes the v116 HedgeDoc CriticMarkup integration. Conversation messages are stored as directly adjacent CriticMarkup comments:
+
+```text
+{>>@hp: question<<}{>>@memex: answer<<}
+```
+
+Keep this format intact when deploying; do not convert voice conversation turns back to the older custom HTML-marker format.
+
 ## Sponsorship
 
 Please consider [sponsoring](https://github.com/sponsors/ricky0123) this project if you have found it useful!
