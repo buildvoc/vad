@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Local Whisper to Ask the Wiki (Test)",
+  "version": "0.7.6",
+  "description": "Whisper-to-Wiki voice bridge with generic Ask-the-Wiki answer broadcast, spoken WIKI ANSWER playback, HedgeDoc Ask mode, and View reader.",
+  "permissions": [
+    "tabs",
+    "storage",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "http://192.168.1.142:8180/*",
+    "http://192.168.1.142:8766/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://192.168.1.142:8766/*"
+      ],
+      "js": [
+        "voice-content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://192.168.1.142:8180/*"
+      ],
+      "js": [
+        "wiki-content.js",
+        "view-reader.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ]
+}
