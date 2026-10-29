@@ -1,0 +1,1795 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Test</title>
+<style>
+  :root { color-scheme:dark }
+  body { margin:0; background:#111d2f; color:#ecf3fa; font:15px system-ui,sans-serif }
+  .wrap { padding:22px; max-width:700px; margin:auto }
+  h2 { margin:0 0 12px; font-size:1.3rem }
+  button { border:0; border-radius:10px; padding:12px 18px; background:#37ccab; color:#042f2a; font-weight:700; cursor:pointer; font-size:1rem }
+  button.on { background:#ffb577; color:#351500 }
+  button.muted { background:#8b99a8; color:#0b1423 }
+  #listenNow { background:#ffd27d; color:#321f00 }
+  button:focus-visible, select:focus-visible, textarea:focus-visible { outline:3px solid #fff }
+  .topline { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:4px }
+  .mode-label { display:flex; align-items:center; gap:7px; font-weight:700 }
+  #mode, #ttsVoice { border:1px solid #5d7185; border-radius:9px; padding:10px 12px; background:#0b1423; color:#ecf3fa; font:inherit; max-width:100% }
+  #status { margin:14px 0; font-size:1rem; color:#a9f3db; min-height:24px }
+  #log { min-height:290px; max-height:375px; overflow-y:auto; background:#0b1423; border:1px solid #33485a; border-radius:10px; padding:14px }
+  .entry { padding:10px; border-radius:9px; margin:0 0 10px; white-space:pre-wrap; overflow-wrap:anywhere }
+  .you { background:#254657; margin-left:10% }
+  .bot { background:#203148; margin-right:10% }
+  .error { background:#562735; margin-right:10% }
+  .label { font-size:.77rem; color:#c6d4e3; font-weight:700; display:block; margin-bottom:4px }
+  .wiki-note-actions { display:flex; align-items:center; gap:8px; margin-top:10px; white-space:normal }
+  .wiki-note-actions button { padding:7px 10px; border-radius:8px; font-size:.82rem; background:#6db7ff; color:#08243e }
+  .wiki-note-actions a { color:#a9f3db; font-size:.85rem; font-weight:700 }
+  .wiki-note-state { color:#aebfd3; font-size:.82rem; font-weight:700 }
+  .hint { color:#aebfd3; line-height:1.5; font-size:.9rem }
+  .barge-panel { margin:10px 0 14px; padding:12px 14px; background:#0b1423; border:1px solid #33485a; border-radius:10px }
+  .barge-row { display:flex; align-items:center; justify-content:space-between; gap:12px; font-weight:700 }
+  .barge-panel input[type=range] { width:100%; margin:10px 0 4px; accent-color:#37ccab }
+  .barge-scale { display:flex; justify-content:space-between; gap:12px; color:#aebfd3; font-size:.8rem }
+  .barge-note { color:#aebfd3; font-size:.82rem; margin:.45rem 0 0; line-height:1.4 }
+  .vocab-panel { margin-top:24px; padding-top:18px; border-top:1px solid #33485a }
+  .vocab-panel h3 { margin:0 0 8px; font-size:1rem }
+  .vocab-panel textarea { box-sizing:border-box; width:100%; min-height:150px; resize:vertical; border:1px solid #5d7185; border-radius:9px; padding:11px 12px; background:#0b1423; color:#ecf3fa; font:16px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace }
+  .vocab-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:10px }
+  .vocab-status { color:#a9f3db; font-size:.88rem; min-height:20px }
+  .vocab-note { color:#aebfd3; line-height:1.45; font-size:.85rem; margin:.5rem 0 0 }
+  .prompt-buttons { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px }
+  .prompt-buttons button { padding:8px 11px; font-size:.9rem; background:#22384d; color:#ecf3fa; border:1px solid #5d7185 }
+  .prompt-buttons button:hover { background:#2c4b67 }
+</style>
+</head>
+<body><div class="wrap">
+<h2>🎙️ Speak to Ask the wiki</h2>
+<div class="topline">
+  <label class="mode-label" for="mode">Mode
+    <select id="mode">
+      <option value="wiki">Ask Wiki</option>
+      <option value="hedgedoc">HedgeDoc Ask Wiki</option>
+    </select>
+  </label>
+  <button id="toggle" type="button">Voice ON</button>
+  <button id="speakingToggle" type="button">Speaking ON</button>
+  <button id="listenNow" type="button" hidden>Stop speaking / Listen now</button>
+  <label class="mode-label" for="ttsVoice">Voice
+    <select id="ttsVoice" aria-label="Text to speech voice">
+      <option value="">System default</option>
+    </select>
+  </label>
+</div>
+<div id="status" role="status" aria-live="polite">Voice is OFF</div>
+<div id="bridgeStatus" style="font-size:.82rem;opacity:.85;margin:.25rem 0 .5rem">Firefox bridge: checking…</div>
+<section id="bargeCalibration" class="barge-panel" aria-labelledby="bargeSensitivityLabel" hidden>
+  <div class="barge-row">
+    <label id="bargeSensitivityLabel" for="bargeSensitivity">Barge-in sensitivity</label>
+    <output id="bargeSensitivityValue" for="bargeSensitivity">7 / 10</output>
+  </div>
+  <input id="bargeSensitivity" type="range" min="1" max="10" step="1" value="7" aria-describedby="bargeSensitivityHelp">
+  <div class="barge-scale"><span>Less sensitive</span><span>More sensitive</span></div>
+  <p id="bargeSensitivityHelp" class="barge-note">Android barge-in calibration. Adjust while testing spoken interruption. The setting is saved on this device.</p>
+</section>
+<div id="log" aria-label="Conversation transcript" role="log"></div>
+<p class="hint"><strong>Ask Wiki:</strong> voice questions auto-submit. <strong>HedgeDoc Ask Wiki:</strong> highlight text in HedgeDoc View and click <strong>Ask</strong>; then speak the question here. It is appended to that context, but the chat waits for <strong>you to press Enter</strong>. The streamed response is spoken here.</p>
+<section class="vocab-panel" aria-labelledby="vocabHeading">
+  <h3 id="vocabHeading">Common vocabulary</h3>
+  <textarea id="vocabulary" spellcheck="false" maxlength="3000" aria-describedby="vocabHelp" placeholder="HedgeDoc&#10;Memex&#10;hedge dock => HedgeDoc"></textarea>
+  <div class="vocab-actions">
+    <button id="saveVocabulary" type="button">Save vocabulary</button>
+    <span id="vocabStatus" class="vocab-status" role="status" aria-live="polite"></span>
+  </div>
+  <p id="vocabHelp" class="vocab-note">One preferred term or phrase per line. To record a recurring mistake, use <strong>wrong hearing =&gt; preferred spelling</strong>; only the preferred spelling is sent to Whisper as vocabulary context.</p>
+</section>
+
+<section class="vocab-panel" aria-labelledby="standardPromptsHeading">
+  <h3 id="standardPromptsHeading">Standard prompts</h3>
+  <textarea id="standardPrompts" spellcheck="false" maxlength="6000" aria-describedby="standardPromptsHelp" placeholder="Tell me about Memex Wiki&#10;How does Ask Wiki work?&#10;Summarize the latest Memex project status"></textarea>
+  <div class="vocab-actions">
+    <button id="saveStandardPrompts" type="button">Save prompts</button>
+    <span id="standardPromptsStatus" class="vocab-status" role="status" aria-live="polite"></span>
+  </div>
+  <p id="standardPromptsHelp" class="vocab-note">One reusable Ask Wiki question per line. Tap a saved prompt below to send it through the current mode. Ask Wiki auto-submits; HedgeDoc Ask Wiki keeps its existing manual Enter behaviour.</p>
+  <div id="standardPromptButtons" class="prompt-buttons" aria-label="Saved standard prompts"></div>
+</section>
+</div>
+<!-- STANDARD_PROMPTS_V109: editable reusable Ask Wiki questions -->
+<!-- ANDROID_SILERO_VAD_V092: browser VAD runtime; Android uses ScriptProcessor for HTTP-LAN compatibility. -->
+<!-- ANDROID_TAP_TO_ASK_V104: Android one-shot mic session; physical mic closes before Whisper/Ask Wiki/Speak. -->
+<!-- ANDROID_STATE_RESTORE_V099: stable barge calibration + remembered Voice ON for Firefox Android. -->
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.31/dist/bundle.min.js"></script>
+<script>
+'use strict';
+// DUAL_BROWSER_BRIDGE_V084
+const IS_FIREFOX = /firefox/i.test(navigator.userAgent);
+// ANDROID_V104_TOUCHFIX
+// Firefox Nightly may use a desktop-style UA on Android/tablet.
+// Treat touch-capable Firefox as the Android voice client.
+const IS_ANDROID =
+  /android/i.test(navigator.userAgent) ||
+  (IS_FIREFOX && Number(navigator.maxTouchPoints || 0) > 1);
+// ANDROID_HYBRID_BARGE_V098_CALIBRATION
+const bargeCalibration = document.getElementById('bargeCalibration');
+const bargeSensitivityInput = document.getElementById('bargeSensitivity');
+const bargeSensitivityValue = document.getElementById('bargeSensitivityValue');
+const BARGE_SENSITIVITY_KEY = 'whisper-android-barge-sensitivity';
+const BARGE_SENSITIVITY_OLD_KEY = 'whisper-android-barge-sensitivity-v098';
+function clampBargeSensitivity(value) {
+  const n = Number.parseInt(String(value), 10);
+  return Number.isFinite(n) ? Math.max(1, Math.min(10, n)) : 7;
+}
+const initialSavedBarge = localStorage.getItem(BARGE_SENSITIVITY_KEY) ?? localStorage.getItem(BARGE_SENSITIVITY_OLD_KEY) ?? '7';
+let androidBargeSensitivity = clampBargeSensitivity(initialSavedBarge);
+let bargeCalibrationReady = false;
+function restoreBargeSensitivity() {
+  const saved = localStorage.getItem(BARGE_SENSITIVITY_KEY) ?? localStorage.getItem(BARGE_SENSITIVITY_OLD_KEY);
+  if (saved !== null) androidBargeSensitivity = clampBargeSensitivity(saved);
+  localStorage.setItem(BARGE_SENSITIVITY_KEY, String(androidBargeSensitivity));
+  renderBargeSensitivity();
+}
+function androidBargeThresholdConfig() {
+  const t = (androidBargeSensitivity - 1) / 9;
+  return {
+    factor: 3.20 - (1.62 * t),
+    minRms: 0.065 - (0.040 * t),
+    delta: 0.020 - (0.0125 * t)
+  };
+}
+function renderBargeSensitivity() {
+  if (!bargeCalibration || !bargeSensitivityInput || !bargeSensitivityValue) return;
+  // v1.0.0: keep calibration visible even if Firefox Android UA detection changes.
+  bargeCalibration.hidden = true; // v1.0.4: barge-in removed
+  bargeSensitivityInput.value = String(androidBargeSensitivity);
+  bargeSensitivityValue.textContent = `${androidBargeSensitivity} / 10`;
+}
+if (bargeSensitivityInput) {
+  bargeSensitivityInput.setAttribute('autocomplete', 'off');
+  const saveBargeSensitivity = () => {
+    if (!bargeCalibrationReady) { renderBargeSensitivity(); return; }
+    androidBargeSensitivity = clampBargeSensitivity(bargeSensitivityInput.value);
+    localStorage.setItem(BARGE_SENSITIVITY_KEY, String(androidBargeSensitivity));
+    renderBargeSensitivity();
+  };
+  bargeSensitivityInput.addEventListener('input', saveBargeSensitivity);
+  bargeSensitivityInput.addEventListener('change', saveBargeSensitivity);
+}
+renderBargeSensitivity();
+// Firefox Android may restore range form state after script execution. Re-apply
+// the saved calibration after form/session restoration has completed.
+setTimeout(() => { restoreBargeSensitivity(); bargeCalibrationReady = true; }, 500);
+window.addEventListener('pageshow', () => {
+  setTimeout(() => { restoreBargeSensitivity(); bargeCalibrationReady = true; }, 80);
+});
+// FIREFOX_ANDROID_AUDIO_PROFILE_V085
+const DOM_BRIDGE_ID = 'whisper-askwiki-dom-bridge';
+const bridgeStatus = document.getElementById('bridgeStatus');
+let domPageSeq = 0;
+let domSeenExtSeq = 0;
+function ensureDomBridge() {
+  let node = document.getElementById(DOM_BRIDGE_ID);
+  if (!node) {
+    node = document.createElement('span');
+    node.id = DOM_BRIDGE_ID;
+    node.hidden = true;
+    (document.documentElement || document).appendChild(node);
+  }
+  return node;
+}
+const domBridge = ensureDomBridge();
+function updateBridgeStatus() {
+  const ready = domBridge.dataset.bridgeReady || document.documentElement.dataset.whisperAskwikiBridge || '';
+  if (bridgeStatus) {
+    if (ready) {
+      bridgeStatus.textContent = 'Firefox bridge: connected (' + ready + ')';
+      bridgeStatus.style.color = '#7ef0c7';
+    } else if (IS_FIREFOX) {
+      bridgeStatus.textContent = 'Firefox bridge: NOT CONNECTED';
+      bridgeStatus.style.color = '#ff9b9b';
+    } else {
+      bridgeStatus.textContent = 'Chrome bridge: compatibility mode';
+      bridgeStatus.style.color = '#7ef0c7';
+    }
+  }
+  return Boolean(ready);
+}
+function dispatchToExtension(payload) {
+  domPageSeq += 1;
+  domBridge.dataset.pageMessage = JSON.stringify(payload);
+  domBridge.dataset.pageSeq = String(domPageSeq);
+}
+function handleExtensionDomPayload(payload) {
+  if (!payload || payload.channel !== 'whisper-askwiki-v1') return;
+  const detail = JSON.stringify(payload);
+  if (payload.type === 'result') document.dispatchEvent(new CustomEvent('whisper-askwiki-result', {detail}));
+  else if (payload.type === 'answer-update') document.dispatchEvent(new CustomEvent('whisper-askwiki-answer', {detail}));
+  else if (payload.type === 'chat-answer-update') document.dispatchEvent(new CustomEvent('whisper-askwiki-chat-answer', {detail}));
+  else if (payload.type === 'ready') updateBridgeStatus();
+}
+function consumeExtensionDomMessage() {
+  const seq = Number(domBridge.dataset.extSeq || '0') || 0;
+  if (!seq || seq <= domSeenExtSeq) return;
+  domSeenExtSeq = seq;
+  try { handleExtensionDomPayload(JSON.parse(domBridge.dataset.extMessage || '{}')); } catch (_) {}
+  updateBridgeStatus();
+}
+new MutationObserver(consumeExtensionDomMessage).observe(domBridge, {
+  attributes: true,
+  attributeFilter: ['data-ext-seq', 'data-bridge-ready']
+});
+setInterval(updateBridgeStatus, 1000);
+setTimeout(updateBridgeStatus, 50);
+const toggle = document.getElementById('toggle');
+const modeSelect = document.getElementById('mode');
+const speakingToggle = document.getElementById('speakingToggle');
+const listenNowButton = document.getElementById('listenNow');
+const MODE_KEY = 'whisper-voice-mode';
+const SPEAKING_KEY = 'whisper-speaking-enabled';
+const VOICE_WANTED_KEY = 'whisper-voice-wanted-v099';
+let voiceWanted = localStorage.getItem(VOICE_WANTED_KEY) === 'on';
+let voiceAutoRestoreBusy = false;
+modeSelect.value = localStorage.getItem(MODE_KEY) === 'hedgedoc' ? 'hedgedoc' : 'wiki';
+let speakingEnabled = localStorage.getItem(SPEAKING_KEY) !== 'off';
+const statusNode = document.getElementById('status');
+const log = document.getElementById('log');
+const synth = window.speechSynthesis;
+// WHISPER_COMMON_VOCABULARY_V091
+const vocabularyInput = document.getElementById('vocabulary');
+const saveVocabularyButton = document.getElementById('saveVocabulary');
+const vocabStatus = document.getElementById('vocabStatus');
+function setVocabStatus(message, isError = false) {
+  if (!vocabStatus) return;
+  vocabStatus.textContent = message;
+  vocabStatus.style.color = isError ? '#ff9b9b' : '#a9f3db';
+}
+function vocabularyLineCount(text) {
+  return String(text || '').split(/\r?\n/).map(v => v.trim()).filter(Boolean).length;
+}
+async function loadVocabulary() {
+  try {
+    const response = await fetch('/api/vocabulary', {cache:'no-store'});
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const payload = await response.json();
+    vocabularyInput.value = String(payload.text || '');
+    const count = vocabularyLineCount(vocabularyInput.value);
+    setVocabStatus(count ? `${count} entr${count === 1 ? 'y' : 'ies'} loaded` : 'Vocabulary is empty');
+  } catch (e) {
+    setVocabStatus('Vocabulary service unavailable until v0.9.1 server patch is installed', true);
+  }
+}
+async function saveVocabulary() {
+  if (!saveVocabularyButton) return;
+  saveVocabularyButton.disabled = true;
+  setVocabStatus('Saving…');
+  try {
+    const response = await fetch('/api/vocabulary', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text:String(vocabularyInput.value || '')})
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || ('HTTP ' + response.status));
+    vocabularyInput.value = String(payload.text || '');
+    const count = vocabularyLineCount(vocabularyInput.value);
+    setVocabStatus(`Saved ${count} entr${count === 1 ? 'y' : 'ies'} — used on the next transcription`);
+  } catch (e) {
+    setVocabStatus('Save failed: ' + String(e.message || e), true);
+  } finally {
+    saveVocabularyButton.disabled = false;
+  }
+}
+if (saveVocabularyButton) saveVocabularyButton.addEventListener('click', saveVocabulary);
+void loadVocabulary();
+
+// STANDARD_PROMPTS_V109
+const standardPromptsInput = document.getElementById('standardPrompts');
+const saveStandardPromptsButton = document.getElementById('saveStandardPrompts');
+const standardPromptsStatus = document.getElementById('standardPromptsStatus');
+const standardPromptButtons = document.getElementById('standardPromptButtons');
+
+function standardPromptLines(text) {
+  const seen = new Set();
+  const lines = [];
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const line = raw.trim().replace(/\s+/g, ' ');
+    if (!line || seen.has(line)) continue;
+    seen.add(line);
+    lines.push(line);
+  }
+  return lines;
+}
+
+function setStandardPromptsStatus(message, isError = false) {
+  if (!standardPromptsStatus) return;
+  standardPromptsStatus.textContent = message;
+  standardPromptsStatus.style.color = isError ? '#ff9b9b' : '#a9f3db';
+}
+
+function sendStandardPrompt(text) {
+  const prompt = String(text || '').trim();
+  if (!prompt) return;
+
+  add('you', prompt);
+  const mode = modeSelect.value === 'hedgedoc' ? 'hedgedoc' : 'wiki';
+  const outbound = {
+    channel:'whisper-askwiki-v1',
+    type:'transcript',
+    id:'standard-prompt-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+    text:prompt,
+    mode
+  };
+
+  status(mode === 'hedgedoc'
+    ? '📝 Adding standard prompt to HedgeDoc Ask Wiki…'
+    : '⏳ Sending standard prompt to Ask Wiki…');
+
+  if (updateBridgeStatus()) dispatchToExtension(outbound);
+  dispatchBridgeEvent('whisper-askwiki-transcript', outbound);
+  window.postMessage(outbound, window.location.origin);
+}
+
+function renderStandardPromptButtons() {
+  if (!standardPromptButtons) return;
+  standardPromptButtons.replaceChildren();
+
+  for (const prompt of standardPromptLines(standardPromptsInput?.value)) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = prompt;
+    button.title = 'Ask: ' + prompt;
+    button.addEventListener('click', () => sendStandardPrompt(prompt));
+    standardPromptButtons.appendChild(button);
+  }
+}
+
+async function loadStandardPrompts() {
+  try {
+    const response = await fetch('/api/standard-prompts', {cache:'no-store'});
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || ('HTTP ' + response.status));
+
+    standardPromptsInput.value = String(payload.text || '');
+    renderStandardPromptButtons();
+    const count = standardPromptLines(standardPromptsInput.value).length;
+    setStandardPromptsStatus(count
+      ? `${count} prompt${count === 1 ? '' : 's'} loaded`
+      : 'No standard prompts saved');
+  } catch (e) {
+    setStandardPromptsStatus('Prompt service unavailable: ' + String(e.message || e), true);
+  }
+}
+
+async function saveStandardPrompts() {
+  if (!saveStandardPromptsButton) return;
+  saveStandardPromptsButton.disabled = true;
+  setStandardPromptsStatus('Saving…');
+
+  try {
+    const response = await fetch('/api/standard-prompts', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text:String(standardPromptsInput.value || '')})
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || ('HTTP ' + response.status));
+
+    standardPromptsInput.value = String(payload.text || '');
+    renderStandardPromptButtons();
+    const count = standardPromptLines(standardPromptsInput.value).length;
+    setStandardPromptsStatus(`Saved ${count} prompt${count === 1 ? '' : 's'}`);
+  } catch (e) {
+    setStandardPromptsStatus('Save failed: ' + String(e.message || e), true);
+  } finally {
+    saveStandardPromptsButton.disabled = false;
+  }
+}
+
+if (saveStandardPromptsButton) {
+  saveStandardPromptsButton.addEventListener('click', saveStandardPrompts);
+}
+if (standardPromptsInput) {
+  standardPromptsInput.addEventListener('input', renderStandardPromptButtons);
+}
+void loadStandardPrompts();
+
+// TTS_VOICE_SELECTOR_V090
+const ttsVoiceSelect = document.getElementById('ttsVoice');
+const TTS_VOICE_KEY = 'whisper-tts-voice-uri';
+let ttsVoices = [];
+function refreshTtsVoices() {
+  if (!ttsVoiceSelect || !synth) return;
+  const previous = localStorage.getItem(TTS_VOICE_KEY) || '';
+  ttsVoices = Array.from(synth.getVoices ? synth.getVoices() : []);
+  ttsVoices.sort((a, b) => {
+    const ae = /^en(?:-|$)/i.test(a.lang || '') ? 0 : 1;
+    const be = /^en(?:-|$)/i.test(b.lang || '') ? 0 : 1;
+    return ae - be || String(a.lang || '').localeCompare(String(b.lang || '')) || String(a.name || '').localeCompare(String(b.name || ''));
+  });
+  ttsVoiceSelect.replaceChildren();
+  const system = document.createElement('option');
+  system.value = '';
+  system.textContent = 'System default';
+  ttsVoiceSelect.appendChild(system);
+  for (const voice of ttsVoices) {
+    const opt = document.createElement('option');
+    opt.value = voice.voiceURI || voice.name;
+    opt.textContent = `${voice.name} — ${voice.lang || 'unknown'}${voice.default ? ' (default)' : ''}`;
+    ttsVoiceSelect.appendChild(opt);
+  }
+  const exists = previous && ttsVoices.some(v => (v.voiceURI || v.name) === previous);
+  ttsVoiceSelect.value = exists ? previous : '';
+}
+function applySelectedTtsVoice(utterance) {
+  const key = ttsVoiceSelect ? ttsVoiceSelect.value : '';
+  const voice = key ? ttsVoices.find(v => (v.voiceURI || v.name) === key) : null;
+  if (voice) {
+    utterance.voice = voice;
+    if (voice.lang) utterance.lang = voice.lang;
+  } else {
+    utterance.lang = 'en-GB';
+  }
+}
+if (ttsVoiceSelect) {
+  ttsVoiceSelect.addEventListener('change', () => {
+    localStorage.setItem(TTS_VOICE_KEY, ttsVoiceSelect.value || '');
+    const label = ttsVoiceSelect.options[ttsVoiceSelect.selectedIndex]?.textContent || 'System default';
+    status('Voice selected: ' + label);
+  });
+}
+if (synth) {
+  synth.addEventListener('voiceschanged', refreshTtsVoices);
+  refreshTtsVoices();
+  setTimeout(refreshTtsVoices, 250);
+  setTimeout(refreshTtsVoices, 1200);
+}
+let active = false;
+let generation = 0;
+let cancelAwaitWiki = null;
+let cancelSpeech = null;
+let speechStateHandler = null;
+let currentUtterance = null;
+let stream = null, ctx = null, analyser = null, recorder = null, timer = null;
+// ANDROID_SILERO_VAD_V092
+let androidVad = null;
+let androidVadReady = false;
+let androidVadSending = false;
+let androidVadInitError = '';
+// ANDROID_CONTINUOUS_HALF_DUPLEX_V108
+// Chrome and Android Firefox use the same continuous conversation model.
+// Android keeps its existing microphone stream alive, pauses Silero and
+// disables the audio track while Whisper/Wiki/TTS are active, then resumes.
+const ANDROID_TAP_TO_ASK = false;
+let androidTurnCaptured = false;
+
+async function closeAndroidCaptureKeepTurn(token = generation) {
+  if (!ANDROID_TAP_TO_ASK || token !== generation) return;
+  clearTimer();
+  if (recorder && recorder.state !== 'inactive') {
+    recorder.onstop = null;
+    try { recorder.stop(); } catch (_) {}
+  }
+  recorder = null;
+  if (androidVadReady && androidVad) {
+    try { await androidVad.pause(); } catch (_) {}
+  }
+  if (stream) {
+    for (const track of stream.getTracks()) {
+      try { track.stop(); } catch (_) {}
+    }
+  }
+  stream = null;
+  if (ctx) {
+    try { await ctx.close(); } catch (_) {}
+  }
+  ctx = null;
+  analyser = null;
+  androidTurnCaptured = true;
+}
+
+async function finishAndroidTapTurn(message = '🎤 Tap to ask another question') {
+  if (!ANDROID_TAP_TO_ASK) return;
+  clearTimer();
+  if (androidVad) {
+    try { await androidVad.destroy(); } catch (_) {}
+  }
+  androidVad = null;
+  androidVadReady = false;
+  androidVadSending = false;
+  androidVadInitError = '';
+  if (stream) {
+    for (const track of stream.getTracks()) {
+      try { track.stop(); } catch (_) {}
+    }
+  }
+  stream = null;
+  if (ctx) { try { await ctx.close(); } catch (_) {} }
+  ctx = null;
+  analyser = null;
+  recorder = null;
+  active = false;
+  generation++;
+  voiceWanted = false;
+  localStorage.setItem(VOICE_WANTED_KEY, 'off');
+  androidMicPausedForTts = false;
+  if (androidMicResumeTimer !== null) { clearTimeout(androidMicResumeTimer); androidMicResumeTimer = null; }
+  toggle.textContent = '🎤 Tap to ask';
+  toggle.classList.remove('on');
+  modeSelect.disabled = false;
+  status(message);
+}
+// ANDROID_HYBRID_BARGE_V098_CALIBRATION
+function setListenNowVisible(show) {
+  if (!listenNowButton) return;
+  listenNowButton.hidden = !(IS_ANDROID && active && show);
+}
+
+function float32ToWav16k(samples) {
+  const rate = 16000;
+  const pcmBytes = samples.length * 2;
+  const buffer = new ArrayBuffer(44 + pcmBytes);
+  const view = new DataView(buffer);
+  const writeAscii = (offset, value) => { for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i)); };
+  writeAscii(0, 'RIFF');
+  view.setUint32(4, 36 + pcmBytes, true);
+  writeAscii(8, 'WAVE');
+  writeAscii(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeAscii(36, 'data');
+  view.setUint32(40, pcmBytes, true);
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Blob([buffer], {type:'audio/wav'});
+}
+
+async function initAndroidVad(token) {
+  if (!IS_ANDROID) return false;
+  if (!window.vad?.MicVAD) {
+    androidVadInitError = 'Silero VAD library unavailable';
+    return false;
+  }
+  try {
+    androidVad = await window.vad.MicVAD.new({
+      model: 'v5',
+      processorType: 'ScriptProcessor',
+      audioContext: ctx,
+      getStream: async () => stream,
+      pauseStream: async () => undefined,
+      resumeStream: async () => stream,
+      onnxWASMBasePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/',
+      baseAssetPath: 'https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.31/dist/',
+      positiveSpeechThreshold: 0.20,
+      negativeSpeechThreshold: 0.12,
+      redemptionMs: 900,
+      preSpeechPadMs: 600,
+      minSpeechMs: 192,
+      submitUserSpeechOnPause: false,
+      onSpeechStart: () => {
+        if (!active || token !== generation || androidSpeechBusy()) return;
+        status('🗣️ Speech detected…');
+      },
+      onVADMisfire: () => {
+        if (active && token === generation && !androidSpeechBusy()) status('🎤 Listening — no clear speech yet');
+      },
+      onSpeechEnd: (audio) => {
+        if (!active || token !== generation || androidSpeechBusy() || androidVadSending) return;
+        if (!(audio instanceof Float32Array) || audio.length < 1600) return;
+        androidVadSending = true;
+        const wav = float32ToWav16k(audio);
+        void (async () => {
+          try {
+            // Android continuous half-duplex.
+            // Keep the MediaStream alive between turns. Firefox Android can
+            // stall getUserMedia when reacquiring from a non-selected tab.
+            try { await androidVad.pause(); } catch (_) {}
+
+            androidMicPausedForTts = true;
+
+            if (stream) {
+              stream.getAudioTracks().forEach((track) => {
+                track.enabled = false;
+              });
+            }
+
+            await sendTurn(wav, token, 'wav');
+          } finally {
+            androidVadSending = false;
+          }
+        })();
+      }
+    });
+    androidVadReady = true;
+    androidVadInitError = '';
+    return true;
+  } catch (e) {
+    androidVad = null;
+    androidVadReady = false;
+    androidVadInitError = String(e?.message || e || 'unknown error');
+    return false;
+  }
+}
+// ANDROID_HYBRID_BARGE_V098_CALIBRATION
+// During Android TTS, Silero is paused but the microphone track stays enabled.
+// A lightweight adaptive RMS detector watches only for a strong near-field
+// interruption. Once triggered, TTS is cancelled and Silero resumes immediately
+// to capture the actual follow-up utterance.
+const ANDROID_TTS_COOLDOWN_MS = 450;
+const ANDROID_BARGE_SAMPLE_MS = 50;
+const ANDROID_BARGE_CALIBRATE_MS = 900;
+const ANDROID_BARGE_REQUIRED_FRAMES = 6;
+const androidBargeSuppressedAnswers = new WeakSet();
+let androidMicPausedForTts = false;
+let androidMicResumeTimer = null;
+let androidTtsHoldUntil = 0;
+let androidBargeTimer = null;
+let androidBargeStartedAt = 0;
+let androidBargeBaseline = 0;
+let androidBargeFrames = 0;
+
+function androidSpeechBusy() {
+  return IS_ANDROID && speakingEnabled && (
+    wikiAnswerSpeechBusy || wikiAnswerSpeechQueue.length > 0 ||
+    terminalSpeechBusy || terminalSpeechQueue.length > 0 ||
+    (synth && synth.speaking) || Date.now() < androidTtsHoldUntil
+  );
+}
+function stopAndroidBargeMonitor() {
+  if (androidBargeTimer !== null) {
+    clearInterval(androidBargeTimer);
+    androidBargeTimer = null;
+  }
+  androidBargeFrames = 0;
+}
+function resumeSileroAfterBarge(token = generation) {
+  if (!IS_ANDROID || !active || token !== generation) return;
+  androidMicPausedForTts = false;
+  androidTtsHoldUntil = 0;
+  if (stream) stream.getAudioTracks().forEach((track) => { track.enabled = true; });
+  setListenNowVisible(false);
+  if (androidVadReady && androidVad) {
+    void Promise.resolve(androidVad.start()).then(() => {
+      if (active && token === generation) status('🎤 TTS stopped — listening with Silero…');
+    }).catch((e) => {
+      androidVadReady = false;
+      androidVadInitError = String(e?.message || e || 'start failed');
+      beginListening(token);
+    });
+  } else {
+    beginListening(token);
+  }
+}
+function cancelAndroidSpeechForHybridBargeIn(token = generation) {
+  if (!IS_ANDROID || !active || token !== generation || !androidSpeechBusy()) return false;
+  const answerNode = latestWikiAnswerContent();
+  if (answerNode) androidBargeSuppressedAnswers.add(answerNode);
+  stopAndroidBargeMonitor();
+  wikiAnswerSpeechQueue.length = 0;
+  terminalSpeechQueue.length = 0;
+  wikiAnswerSpeechBusy = false;
+  terminalSpeechBusy = false;
+  currentUtterance = null;
+  androidTtsHoldUntil = 0;
+  if (androidMicResumeTimer !== null) {
+    clearTimeout(androidMicResumeTimer);
+    androidMicResumeTimer = null;
+  }
+  try { if (synth) synth.cancel(); } catch (_) {}
+  status('🛑 Voice interruption detected — listening…');
+  resumeSileroAfterBarge(token);
+  return true;
+}
+function startAndroidBargeMonitor(token = generation) {
+  if (!IS_ANDROID || !active || token !== generation || !analyser || !stream) return;
+  stopAndroidBargeMonitor();
+  const samples = new Float32Array(analyser.fftSize);
+  androidBargeStartedAt = Date.now();
+  androidBargeBaseline = 0;
+  androidBargeFrames = 0;
+  if (stream) stream.getAudioTracks().forEach((track) => { track.enabled = true; });
+  androidBargeTimer = setInterval(() => {
+    if (!active || token !== generation) { stopAndroidBargeMonitor(); return; }
+    if (!androidSpeechBusy()) { stopAndroidBargeMonitor(); scheduleAndroidMicResume(token, 80); return; }
+    analyser.getFloatTimeDomainData(samples);
+    let sum = 0, peak = 0;
+    for (let i = 0; i < samples.length; i++) {
+      const a = Math.abs(samples[i]);
+      sum += samples[i] * samples[i];
+      if (a > peak) peak = a;
+    }
+    const rms = Math.sqrt(sum / samples.length);
+    const age = Date.now() - androidBargeStartedAt;
+    if (age < ANDROID_BARGE_CALIBRATE_MS) {
+      androidBargeBaseline = androidBargeBaseline ? (androidBargeBaseline * 0.72 + rms * 0.28) : rms;
+      return;
+    }
+    const bargeConfig = androidBargeThresholdConfig();
+    const trigger = Math.max(
+      bargeConfig.minRms,
+      androidBargeBaseline * bargeConfig.factor + bargeConfig.delta
+    );
+    const strongNearField = rms > trigger && peak > trigger * 1.60;
+    if (strongNearField) {
+      androidBargeFrames += 1;
+    } else {
+      androidBargeFrames = 0;
+      if (rms < trigger * 0.70) {
+        androidBargeBaseline = androidBargeBaseline * 0.97 + rms * 0.03;
+      }
+    }
+    if (androidBargeFrames >= ANDROID_BARGE_REQUIRED_FRAMES) {
+      cancelAndroidSpeechForHybridBargeIn(token);
+    }
+  }, ANDROID_BARGE_SAMPLE_MS);
+}
+function pauseAndroidMicForTts() {
+  if (!IS_ANDROID || !active) return;
+
+  androidMicPausedForTts = true;
+
+  if (androidMicResumeTimer !== null) {
+    clearTimeout(androidMicResumeTimer);
+    androidMicResumeTimer = null;
+  }
+
+  clearTimer();
+
+  if (recorder && recorder.state !== 'inactive') {
+    recorder.onstop = null;
+    try { recorder.stop(); } catch (_) {}
+  }
+
+  recorder = null;
+
+  // Android continuous half-duplex:
+  // pause VAD and mute the existing track while TTS speaks.
+  // Do NOT stop/recreate the stream between turns.
+  stopAndroidBargeMonitor();
+
+  if (androidVadReady && androidVad) {
+    try { void androidVad.pause(); } catch (_) {}
+  }
+
+  if (stream) {
+    stream.getAudioTracks().forEach((track) => {
+      track.enabled = false;
+    });
+  }
+
+  setListenNowVisible(false);
+}
+function scheduleAndroidMicResume(token = generation, delayMs = ANDROID_TTS_COOLDOWN_MS) {
+  if (!IS_ANDROID || !active || token !== generation || !androidMicPausedForTts) return;
+  if (androidMicResumeTimer !== null) clearTimeout(androidMicResumeTimer);
+  androidMicResumeTimer = setTimeout(() => {
+    androidMicResumeTimer = null;
+    if (!active || token !== generation) return;
+    if (androidSpeechBusy()) {
+      scheduleAndroidMicResume(token, ANDROID_TTS_COOLDOWN_MS);
+      return;
+    }
+    stopAndroidBargeMonitor();
+    androidMicPausedForTts = false;
+    androidTtsHoldUntil = 0;
+    if (stream) {
+      stream.getAudioTracks().forEach((track) => {
+        track.enabled = true;
+      });
+    }
+
+    setListenNowVisible(false);
+
+    if (ctx && ctx.state === 'suspended') {
+      try { void ctx.resume(); } catch (_) {}
+    }
+
+    status('🎤 Listening for your next question…');
+    beginListening(token);
+  }, delayMs);
+}
+function noteAndroidTtsActivity(extraMs = 350) {
+  if (!IS_ANDROID) return;
+  androidTtsHoldUntil = Math.max(androidTtsHoldUntil, Date.now() + extraMs);
+  pauseAndroidMicForTts();
+}
+async function stopSpeechAndListenNow() {
+  if (!IS_ANDROID || !active) return;
+  const answerNode = latestWikiAnswerContent();
+  if (answerNode) androidBargeSuppressedAnswers.add(answerNode);
+  stopAndroidBargeMonitor();
+  wikiAnswerSpeechQueue.length = 0;
+  terminalSpeechQueue.length = 0;
+  wikiAnswerSpeechBusy = false;
+  terminalSpeechBusy = false;
+  currentUtterance = null;
+  androidTtsHoldUntil = 0;
+  try { if (synth) synth.cancel(); } catch (_) {}
+  if (androidVadReady && androidVad) {
+    try { await androidVad.pause(); } catch (_) {}
+  }
+  androidMicPausedForTts = true;
+  if (androidMicResumeTimer !== null) clearTimeout(androidMicResumeTimer);
+  status('🛑 Speech stopped — listening…');
+  resumeSileroAfterBarge(generation);
+}
+if (listenNowButton) listenNowButton.addEventListener('click', stopSpeechAndListenNow);
+const THRESHOLD = IS_ANDROID ? 0.010 : 0.018;
+const SILENCE_TIMEOUT_MS = IS_ANDROID ? 3800 : 3000;
+const MAX_RECORDING_MS = 60000;
+function status(s) { statusNode.textContent = s; }
+function add(kind, s) {
+  const e = document.createElement('div'); e.className = 'entry ' + kind;
+  const label = document.createElement('span'); label.className = 'label';
+  label.textContent = kind === 'you' ? 'VOICE TRANSCRIPT' : kind === 'bot' ? 'WIKI ANSWER' : kind === 'error' ? 'VOICE ERROR' : 'WIKI BRIDGE';
+  const content = document.createElement('span'); content.textContent = s;
+  e.append(label, content); log.appendChild(e); log.scrollTop = log.scrollHeight;
+  return content;
+}
+function latestWikiAnswerContent() {
+  const entries = log.querySelectorAll('.entry.bot');
+  if (!entries.length) return null;
+  return entries[entries.length - 1].querySelector('span:not(.label)');
+}
+function compatibleWikiAnswerNode(text) {
+  const node = latestWikiAnswerContent();
+  if (!node) return null;
+  const oldText = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+  const newText = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!oldText || !newText) return null;
+  return newText.startsWith(oldText) || oldText.startsWith(newText) ? node : null;
+}
+
+// WIKI_HEDGEDOC_NOTE_UI_V111
+const wikiNoteUiState = new WeakMap();
+
+// WIKI_HEDGEDOC_CONVERSATION_NOTE_V113
+// First saved response creates the note; all later responses inherit that alias.
+const wikiConversationNoteState = {
+  alias: '',
+  created: '',
+  url: ''
+};
+
+
+function updateWikiNoteControls(answerNode, question, inputMode, responseId, done = false) {
+  if (!answerNode) return;
+  const entry = answerNode.closest('.entry.bot');
+  if (!entry) return;
+
+  let state = wikiNoteUiState.get(answerNode);
+  if (!state) {
+    const actions = document.createElement('div');
+    actions.className = 'wiki-note-actions';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.disabled = true;
+    button.textContent = 'Waiting for response…';
+
+    const noteState = document.createElement('span');
+    noteState.className = 'wiki-note-state';
+    noteState.textContent = 'Wiki response streaming';
+
+    const link = document.createElement('a');
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'Open note';
+    link.hidden = true;
+
+    actions.append(button, noteState, link);
+    entry.appendChild(actions);
+
+    state = {
+      button,
+      noteState,
+      link,
+      question: String(question || '').trim(),
+      inputMode: String(inputMode || 'wiki'),
+      responseId: String(responseId || ''),
+      alias: String(wikiConversationNoteState.alias || ''),
+      created: String(wikiConversationNoteState.created || ''),
+      settleTimer: null
+    };
+    wikiNoteUiState.set(answerNode, state);
+
+    if (state.alias) {
+      button.textContent = 'Add to HedgeDoc thread';
+      noteState.textContent = 'Existing HedgeDoc thread';
+      if (wikiConversationNoteState.url) {
+        link.href = wikiConversationNoteState.url;
+        link.hidden = false;
+      }
+    }
+
+    button.addEventListener('click', async () => {
+      const answer = String(answerNode.textContent || '').trim();
+      const q = String(state.question || '').trim();
+      if (!q || !answer) {
+        status('Cannot create HedgeDoc note: question or answer is empty');
+        return;
+      }
+
+      const updating = Boolean(state.alias);
+      button.disabled = true;
+      button.textContent = updating ? 'Updating HedgeDoc note…' : 'Creating HedgeDoc note…';
+      state.noteState.textContent = updating ? 'Updating note' : 'Creating note';
+
+      try {
+        const response = await fetch('/api/wiki-note', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            question: q,
+            answer,
+            input_mode: state.inputMode,
+            response_id: state.responseId,
+            alias: state.alias,
+            created: state.created
+          })
+        });
+
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.detail || ('HTTP ' + response.status));
+
+        state.alias = String(payload.alias || state.alias || '');
+        state.created = String(payload.created || state.created || '');
+        state.link.href = String(payload.url || '');
+        state.link.hidden = !state.link.href;
+
+        wikiConversationNoteState.alias = state.alias;
+        wikiConversationNoteState.created = state.created;
+        wikiConversationNoteState.url = state.link.href;
+        state.noteState.textContent = payload.action === 'updated'
+          ? 'HedgeDoc thread updated'
+          : 'HedgeDoc note created';
+        button.textContent = 'Add to HedgeDoc thread';
+        button.disabled = false;
+
+        status((payload.action === 'updated' ? '📝 HedgeDoc thread updated: ' : '📝 HedgeDoc note created: ') + state.alias);
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = state.alias ? 'Add to HedgeDoc thread' : 'Create HedgeDoc note';
+        state.noteState.textContent = state.alias ? 'HedgeDoc note update failed' : 'HedgeDoc note creation failed';
+        status('HedgeDoc note failed: ' + String(error.message || error));
+      }
+    });
+  }
+
+  state.question = String(question || state.question || '').trim();
+  state.inputMode = String(inputMode || state.inputMode || 'wiki');
+  state.responseId = String(responseId || state.responseId || '');
+
+  if (!state.alias && wikiConversationNoteState.alias) {
+    state.alias = wikiConversationNoteState.alias;
+    state.created = wikiConversationNoteState.created;
+    if (wikiConversationNoteState.url) {
+      state.link.href = wikiConversationNoteState.url;
+      state.link.hidden = false;
+    }
+  }
+
+  const markReady = () => {
+    state.settleTimer = null;
+    state.button.disabled = false;
+    state.button.textContent = state.alias ? 'Add to HedgeDoc thread' : 'Create HedgeDoc note';
+    state.noteState.textContent = state.alias
+      ? 'Existing HedgeDoc thread'
+      : 'Ready to create HedgeDoc note';
+  };
+
+  if (state.settleTimer !== null) {
+    clearTimeout(state.settleTimer);
+    state.settleTimer = null;
+  }
+
+  if (done) {
+    markReady();
+  } else if (!state.alias) {
+    state.button.disabled = true;
+    state.button.textContent = 'Waiting for response…';
+    state.noteState.textContent = 'Wiki response streaming';
+    state.settleTimer = setTimeout(markReady, 1800);
+  }
+}
+
+function clearTimer() { if (timer !== null) { clearInterval(timer); timer = null; } }
+function renderSpeakingToggle() {
+  speakingToggle.textContent = speakingEnabled ? 'Speaking ON' : 'Speaking OFF';
+  speakingToggle.classList.toggle('muted', !speakingEnabled);
+  speakingToggle.setAttribute('aria-pressed', speakingEnabled ? 'true' : 'false');
+}
+renderSpeakingToggle();
+
+// WIKI_ANSWER_SPEECH_V075
+// Speech source is the text already displayed in the WIKI ANSWER entry.
+let wikiAnswerSpeechBusy = false;
+const wikiAnswerSpeechQueue = [];
+const wikiAnswerSpeechState = new WeakMap();
+
+function wikiAnswerChunks(text) {
+  const source = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!source) return [];
+  const chunks = [];
+  let rest = source;
+  while (rest.length > 190) {
+    let cut = rest.lastIndexOf(' ', 190);
+    if (cut < 80) cut = 190;
+    chunks.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) chunks.push(rest);
+  return chunks;
+}
+
+function pumpWikiAnswerSpeech() {
+  if (wikiAnswerSpeechBusy || !speakingEnabled || !synth || !window.SpeechSynthesisUtterance) return;
+  const next = wikiAnswerSpeechQueue.shift();
+  if (!next) {
+    scheduleAndroidMicResume();
+    return;
+  }
+  noteAndroidTtsActivity();
+  wikiAnswerSpeechBusy = true;
+  const utterance = new SpeechSynthesisUtterance(next);
+  applySelectedTtsVoice(utterance);
+  utterance.rate = 1;
+  utterance.onend = () => {
+    wikiAnswerSpeechBusy = false;
+    pumpWikiAnswerSpeech();
+    scheduleAndroidMicResume();
+  };
+  utterance.onerror = () => {
+    wikiAnswerSpeechBusy = false;
+    status('Wiki Answer speech playback failed');
+    pumpWikiAnswerSpeech();
+    scheduleAndroidMicResume();
+  };
+  try {
+    synth.resume();
+    synth.speak(utterance);
+    status(IS_ANDROID ? '🔊 Speaking — microphone closed' : '🔊 Speaking WIKI ANSWER…');
+  } catch (_) {
+    wikiAnswerSpeechBusy = false;
+    status('Wiki Answer speech playback failed');
+  }
+}
+
+function speakWikiAnswerNode(answerNode, done = false) {
+  if (!answerNode) return;
+  const incoming = String(answerNode.textContent || '').replace(/\s+/g, ' ').trim();
+  if (androidBargeSuppressedAnswers.has(answerNode)) {
+    // The user interrupted this answer. Keep rendering it as text, but never
+    // enqueue more TTS from the same streamed response.
+    let suppressedState = wikiAnswerSpeechState.get(answerNode);
+    if (!suppressedState) {
+      suppressedState = {committed: incoming.length, snapshot: incoming, flushTimer: null};
+      wikiAnswerSpeechState.set(answerNode, suppressedState);
+    } else {
+      if (suppressedState.flushTimer) clearTimeout(suppressedState.flushTimer);
+      suppressedState.flushTimer = null;
+      suppressedState.snapshot = incoming;
+      suppressedState.committed = incoming.length;
+    }
+    return;
+  }
+  let state = wikiAnswerSpeechState.get(answerNode);
+  if (!state) {
+    state = {committed: 0, snapshot: '', flushTimer: null};
+    wikiAnswerSpeechState.set(answerNode, state);
+  }
+
+  if (state.flushTimer) {
+    clearTimeout(state.flushTimer);
+    state.flushTimer = null;
+  }
+
+  // Streaming markdown may rewrite its tail. Never replay text that was already spoken.
+  if (state.committed && !incoming.startsWith(state.snapshot.slice(0, state.committed))) {
+    state.snapshot = incoming;
+    state.committed = incoming.length;
+    return;
+  }
+  state.snapshot = incoming;
+
+  if (!speakingEnabled) {
+    state.committed = incoming.length;
+    wikiAnswerSpeechQueue.length = 0;
+    return;
+  }
+
+  const commitAvailable = (flushTail = false) => {
+    let remaining = state.snapshot.slice(state.committed);
+    while (remaining.length) {
+      const sentence = /[.!?][\"'\)\]]*(?:\s+|$)/.exec(remaining);
+      let cut = sentence ? sentence.index + sentence[0].length : 0;
+      if (!cut && remaining.length >= 260) {
+        cut = remaining.lastIndexOf(' ', 220) + 1;
+        if (cut < 100) cut = Math.min(220, remaining.length);
+      }
+      if (!cut && flushTail) cut = remaining.length;
+      if (!cut) break;
+      const phrase = remaining.slice(0, cut).trim();
+      if (phrase) {
+        noteAndroidTtsActivity();
+        wikiAnswerSpeechQueue.push(...wikiAnswerChunks(phrase));
+      }
+      state.committed += cut;
+      remaining = state.snapshot.slice(state.committed);
+    }
+    pumpWikiAnswerSpeech();
+  };
+
+  commitAvailable(done);
+
+  // Some bridge paths do not provide a dependable final/done event. If the
+  // displayed WIKI ANSWER stops changing, flush its remaining text anyway.
+  if (!done && state.committed < state.snapshot.length) {
+    state.flushTimer = setTimeout(() => {
+      state.flushTimer = null;
+      if (speakingEnabled) commitAvailable(true);
+    }, 1200);
+  }
+}
+
+// Observe the actual displayed WIKI ANSWER. This makes speech independent of
+// the route that delivered the answer (voice turn, manual Enter, typed chat).
+const wikiAnswerDomObserver = new MutationObserver(() => {
+  for (const entry of log.querySelectorAll('.entry.bot')) {
+    const content = entry.querySelector('span:not(.label)');
+    if (content) speakWikiAnswerNode(content, false);
+  }
+});
+wikiAnswerDomObserver.observe(log, {childList: true, subtree: true, characterData: true});
+
+// FIREFOX_ANDROID_DOM_EVENT_CLIENT_V080
+function parseBridgeEventDetail(event) {
+  try { return JSON.parse(String(event?.detail || '')); } catch (_) { return null; }
+}
+function dispatchBridgeEvent(name, payload) {
+  document.dispatchEvent(new CustomEvent(name, {detail: JSON.stringify(payload)}));
+}
+
+// GENERIC_CHAT_ANSWER_RECEIVER_V076
+// Receives every new Ask-the-Wiki answer, including normal typed chat.
+let genericWikiStreamId = null;
+let genericWikiSeq = -1;
+let genericWikiAnswerNode = null;
+
+// WIKI_HEDGEDOC_NOTE_GENERIC_V112
+// Generic chat-answer broadcasts are the path used by many displayed Wiki answers.
+// Recover the nearest visible VOICE TRANSCRIPT so those answers get the same
+// Create/Update HedgeDoc controls as the direct askWikiAndSpeak path.
+function questionForWikiAnswerNode(answerNode) {
+  const entry = answerNode?.closest?.('.entry.bot');
+  if (!entry) return '';
+
+  for (let node = entry.previousElementSibling; node; node = node.previousElementSibling) {
+    if (node.classList?.contains('bot')) break;
+    if (!node.classList?.contains('you')) continue;
+    const content = node.querySelector('span:not(.label)');
+    const question = String(content?.textContent || '').replace(/\s+/g, ' ').trim();
+    if (question) return question;
+  }
+  return '';
+}
+
+function receiveGenericWikiAnswer(data) {
+  if (data?.channel !== 'whisper-askwiki-v1' || data.type !== 'chat-answer-update') return;
+  if (typeof data.streamId !== 'string' || !data.streamId) return;
+  if (!Number.isSafeInteger(data.seq)) return;
+
+  if (data.streamId !== genericWikiStreamId) {
+    genericWikiStreamId = data.streamId;
+    genericWikiSeq = -1;
+    genericWikiAnswerNode = null;
+  }
+  if (data.seq <= genericWikiSeq) return;
+  genericWikiSeq = data.seq;
+
+  if (data.error) {
+    status('Wiki bridge error: ' + String(data.error));
+    return;
+  }
+
+  const incoming = String(data.text || '').replace(/\s+/g, ' ').trim();
+  if (incoming) {
+    if (!genericWikiAnswerNode || !genericWikiAnswerNode.isConnected) {
+      genericWikiAnswerNode = compatibleWikiAnswerNode(incoming) || add('bot', incoming);
+    } else {
+      genericWikiAnswerNode.textContent = incoming;
+    }
+    speakWikiAnswerNode(genericWikiAnswerNode, data.done === true);
+
+    // v112: attach note controls on the generic answer path too.
+    // Empty mode preserves a more-specific mode already set by askWikiAndSpeak.
+    updateWikiNoteControls(
+      genericWikiAnswerNode,
+      questionForWikiAnswerNode(genericWikiAnswerNode),
+      '',
+      data.streamId,
+      data.done === true
+    );
+
+    if (!wikiAnswerSpeechBusy) {
+      status(speakingEnabled ? '📥 WIKI ANSWER received…' : '🔇 Speaking OFF — WIKI ANSWER received');
+    }
+  }
+}
+
+document.addEventListener('whisper-askwiki-chat-answer', (event) => {
+  receiveGenericWikiAnswer(parseBridgeEventDetail(event));
+});
+window.addEventListener('message', (event) => {
+  if (event.origin !== window.location.origin || (event.source && event.source !== window)) return;
+  receiveGenericWikiAnswer(event.data);
+});
+
+async function stopVoice(preserveWanted = false) {
+  if (!preserveWanted) {
+    voiceWanted = false;
+    localStorage.setItem(VOICE_WANTED_KEY, 'off');
+  }
+  active = false; generation++;
+  stopAndroidBargeMonitor();
+  setListenNowVisible(false);
+  androidMicPausedForTts = false;
+  androidTtsHoldUntil = 0;
+  if (androidMicResumeTimer !== null) { clearTimeout(androidMicResumeTimer); androidMicResumeTimer = null; }
+  if (cancelAwaitWiki) cancelAwaitWiki();
+  if (cancelSpeech) cancelSpeech();
+  clearTimer();
+  if (recorder && recorder.state !== 'inactive') { recorder.onstop = null; recorder.stop(); }
+  recorder = null;
+  if (androidVad) {
+    try { await androidVad.destroy(); } catch (_) {}
+  }
+  androidVad = null; androidVadReady = false; androidVadSending = false; androidVadInitError = '';
+  if (synth) synth.cancel();
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null;
+  if (ctx) { try { await ctx.close(); } catch (_) {} }
+  ctx = null; analyser = null;
+  toggle.textContent = ANDROID_TAP_TO_ASK ? '🎤 Tap to ask' : 'Voice ON'; toggle.classList.remove('on');
+  modeSelect.disabled = false;
+  status(ANDROID_TAP_TO_ASK ? 'Ready — tap to ask' : 'Voice is OFF');
+}
+function askWikiAndSpeak(text, token, mode = 'wiki') {
+  try { if (synth) synth.resume(); } catch (_) {}
+  return new Promise((resolve, reject) => {
+    const id = 'turn-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    const speechSupported = Boolean(synth && window.SpeechSynthesisUtterance);
+    // v0.7.4: playback comes from the displayed WIKI ANSWER node below.
+    const canSpeak = () => false;
+    let settled = false;
+    let lastSeq = -1;
+    let latestText = '';
+    let committedChars = 0;
+    let finalAnswer = false;
+    let speaking = false;
+    let answerNode = null;
+    const queue = [];
+
+    const ackTimer = setTimeout(() => finish(new Error('Browser extension did not acknowledge the question. Check the Chrome/Firefox bridge extension is enabled and reload this page.')), 12000);
+    const replyTimer = setTimeout(() => finish(new Error('No wiki answer received within 5 minutes.')), 305000);
+
+    function finish(error) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(ackTimer);
+      clearTimeout(replyTimer);
+      window.removeEventListener('message', receive);
+      document.removeEventListener('whisper-askwiki-result', receiveResultEvent);
+      document.removeEventListener('whisper-askwiki-answer', receiveAnswerEvent);
+      if (cancelAwaitWiki === cancel) cancelAwaitWiki = null;
+      if (cancelSpeech === cancel) cancelSpeech = null;
+      if (speechStateHandler === handleSpeechStateChange) speechStateHandler = null;
+      if (error) {
+        try { if (synth) synth.cancel(); } catch (_) {}
+        reject(error);
+      } else {
+        resolve(latestText);
+      }
+      currentUtterance = null;
+    }
+
+    function cancel() { finish(new Error('Voice turned off')); }
+    cancelAwaitWiki = cancel;
+    cancelSpeech = cancel;
+
+    function handleSpeechStateChange() {
+      if (!speakingEnabled) {
+        queue.length = 0;
+        committedChars = latestText.length;
+        if (speaking) {
+          try { if (synth) synth.cancel(); } catch (_) {}
+          speaking = false;
+          currentUtterance = null;
+        }
+        if (finalAnswer) pump();
+        else status('🔇 Speaking OFF — receiving Wiki response…');
+        return;
+      }
+      try { if (synth) synth.resume(); } catch (_) {}
+      pump();
+    }
+    speechStateHandler = handleSpeechStateChange;
+
+    function enqueue(textChunk) {
+      // Keep each browser SpeechSynthesis utterance below 190 characters.
+      const words = textChunk.split(/\s+/).filter(Boolean);
+      let part = '';
+      for (const word of words) {
+        if (part && part.length + word.length + 1 > 190) {
+          queue.push(part);
+          part = '';
+        }
+        if (word.length > 190) {
+          if (part) { queue.push(part); part = ''; }
+          for (let i = 0; i < word.length; i += 190) queue.push(word.slice(i, i + 190));
+        } else {
+          part = part ? part + ' ' + word : word;
+        }
+      }
+      if (part) queue.push(part);
+    }
+
+    function pump() {
+      if (settled || speaking) return;
+      if (!active || token !== generation) { cancel(); return; }
+      if (canSpeak() && queue.length) {
+        speaking = true;
+        const utterance = new SpeechSynthesisUtterance(queue.shift());
+        currentUtterance = utterance;
+        applySelectedTtsVoice(utterance);
+        utterance.rate = 1;
+        utterance.onend = () => { speaking = false; currentUtterance = null; pump(); };
+        utterance.onerror = () => finish(new Error('Browser speech playback failed'));
+        status(finalAnswer ? '🔊 Speaking wiki answer…' : '🔊 Speaking while Wiki streams…');
+        try { synth.speak(utterance); } catch (e) { finish(e); }
+        return;
+      }
+      if (finalAnswer) { finish(latestText ? null : new Error('Wiki returned an empty answer')); return; }
+      if (!finalAnswer) status(speakingEnabled
+        ? '📥 WIKI ANSWER streaming…'
+        : '🔇 Speaking OFF — receiving WIKI ANSWER…');
+    }
+
+    function consume(snapshot, done) {
+      // Normalise layout-only whitespace so streaming markdown reflows less often.
+      const incoming = String(snapshot || '').replace(/\s+/g, ' ').trim();
+      if (!incoming && !done) return;
+
+      if (incoming) {
+        if (!answerNode) answerNode = compatibleWikiAnswerNode(incoming) || add('bot', incoming);
+        else answerNode.textContent = incoming;
+      }
+      // Speak exactly the text shown under WIKI ANSWER.
+      speakWikiAnswerNode(answerNode, done);
+
+
+      // Every Wiki answer gets persistent HedgeDoc note controls.
+      if (answerNode) {
+        updateWikiNoteControls(
+          answerNode,
+          text,
+          mode === 'hedgedoc' ? 'voice-hedgedoc' : 'voice-wiki',
+          id,
+          done
+        );
+      }
+
+      // Rewriting previously spoken words is unsafe: do not speak them twice.
+      // Keep the displayed final answer, but don't guess a new speech offset.
+      if (committedChars && !incoming.startsWith(latestText.slice(0, committedChars))) {
+        latestText = incoming;
+        if (done) { finalAnswer = true; pump(); }
+        return;
+      }
+      latestText = incoming;
+
+      if (canSpeak()) {
+        let remaining = incoming.slice(committedChars);
+        while (remaining.length) {
+          // Speak at complete sentence boundaries; 240+ char sentence fallback.
+          const m = /[.!?]["'\)\]]*\s+/.exec(remaining);
+          let cut = m ? m.index + m[0].length : 0;
+          if (!cut && remaining.length >= 260) {
+            cut = remaining.lastIndexOf(' ', 220) + 1;
+            if (cut < 100) cut = 220;
+          }
+          if (!cut && done) cut = remaining.length;
+          if (!cut) break;
+          enqueue(remaining.slice(0, cut).trim());
+          committedChars += cut;
+          remaining = incoming.slice(committedChars);
+        }
+      } else {
+        // Speaking is muted: discard already-received speech so enabling later
+        // starts from new response text rather than replaying the answer.
+        queue.length = 0;
+        committedChars = incoming.length;
+      }
+      if (done) finalAnswer = true;
+      pump();
+    }
+
+    function receive(event) {
+      if (event.origin !== window.location.origin || (event.source && event.source !== window)) return;
+      const data = event.data;
+      if (data?.channel !== 'whisper-askwiki-v1' || data.id !== id) return;
+      if (data.type === 'result') {
+        if (!data.ok) { finish(new Error(data.error || 'Wiki bridge failed')); return; }
+        clearTimeout(ackTimer);
+        if (!speaking) {
+          status(mode === 'hedgedoc'
+            ? '⌨️ Question inserted — press Enter in Ask the wiki…'
+            : '⏳ Waiting for Wiki response…');
+        }
+        return;
+      }
+      if (data.type !== 'answer-update') return;
+      if (!Number.isSafeInteger(data.seq) || data.seq <= lastSeq) return;
+      if (!speaking) status(speakingEnabled
+        ? '📥 Wiki response received — preparing speech…'
+        : '📥 Wiki response received — Speaking OFF');
+      lastSeq = data.seq;
+      clearTimeout(ackTimer);
+      if (data.error) { finish(new Error(data.error)); return; }
+      consume(data.text, data.done === true);
+    }
+
+    function receiveResultEvent(event) { receive({origin: window.location.origin, source: null, data: parseBridgeEventDetail(event)}); }
+    function receiveAnswerEvent(event) { receive({origin: window.location.origin, source: null, data: parseBridgeEventDetail(event)}); }
+
+    window.addEventListener('message', receive);
+    document.addEventListener('whisper-askwiki-result', receiveResultEvent);
+    document.addEventListener('whisper-askwiki-answer', receiveAnswerEvent);
+
+    const outbound = {channel: 'whisper-askwiki-v1', type: 'transcript', id, text, mode};
+    // Firefox Android v0.8.3 uses the shared-DOM bridge. Desktop Chrome uses
+    // the original window.postMessage bridge. Never require the Firefox bridge
+    // on Chrome: the same :8766 page must support both browsers.
+    if (updateBridgeStatus()) dispatchToExtension(outbound);
+    dispatchBridgeEvent('whisper-askwiki-transcript', outbound);
+    window.postMessage(outbound, window.location.origin);
+  });
+}
+async function sendTurn(blob, token, extension) {
+  if (!active || token !== generation) return;
+  status('⏳ Transcribing with Whisper…');
+  const form = new FormData();
+  form.append('file', blob, 'speech.' + extension);
+  try {
+    const result = await fetch('/api/turn', {method:'POST', body:form});
+    const json = await result.json();
+    if (!result.ok) throw new Error(json.detail || ('HTTP ' + result.status));
+    if (!active || token !== generation) return;
+    if (!json.text) {
+      if (ANDROID_TAP_TO_ASK) { await finishAndroidTapTurn('No speech detected — tap to try again'); return; }
+      status('No speech detected; listening again…'); beginListening(token); return;
+    }
+    if (ANDROID_TAP_TO_ASK && !androidTurnCaptured) await closeAndroidCaptureKeepTurn(token);
+    add('you', json.text);
+    const mode = modeSelect.value === 'hedgedoc' ? 'hedgedoc' : 'wiki';
+    status(mode === 'hedgedoc' ? '📝 Adding question to HedgeDoc context…' : '⏳ Sending to Ask the wiki…');
+    await askWikiAndSpeak(json.text, token, mode);
+    if (!active || token !== generation) return;
+    if (ANDROID_TAP_TO_ASK) {
+      await finishAndroidTapTurn('🔊 Response received — microphone closed. Tap to ask again.');
+      return;
+    }
+    status('🎤 Listening for your next question…');
+    beginListening(token);
+  } catch (e) {
+    if (!active || token !== generation) return;
+    const message = String(e.message || e);
+    await stopVoice();
+    add('error', message);
+    status('Error: ' + message);
+  }
+}
+function beginListening(token) {
+  if (!active || token !== generation || !stream || !analyser) return;
+  if (IS_ANDROID && androidSpeechBusy()) {
+    pauseAndroidMicForTts();
+    scheduleAndroidMicResume(token);
+    return;
+  }
+  if (IS_ANDROID && androidMicPausedForTts) {
+    androidMicPausedForTts = false;
+    if (stream) stream.getAudioTracks().forEach((track) => { track.enabled = true; });
+  }
+  if (IS_ANDROID && androidVadReady && androidVad) {
+    if (stream) {
+      stream.getAudioTracks().forEach((track) => {
+        track.enabled = true;
+      });
+    }
+
+    if (ctx && ctx.state === 'suspended') {
+      try { void ctx.resume(); } catch (_) {}
+    }
+
+    void Promise.resolve(androidVad.start()).then(() => {
+      if (active && token === generation) {
+        status(
+          androidSpeechBusy()
+            ? '🔊 Speaking — microphone paused'
+            : '🎤 Listening — Silero VAD'
+        );
+      }
+    }).catch((e) => {
+      androidVadReady = false;
+      androidVadInitError = String(e?.message || e || 'start failed');
+      status('Silero VAD failed; using level detector');
+      beginListening(token);
+    });
+    return;
+  }
+  const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  const mime = types.find(t => MediaRecorder.isTypeSupported(t));
+  const opts = mime ? {mimeType:mime} : {};
+  const ext = mime && mime.includes('mp4') ? 'mp4' : mime && mime.includes('ogg') ? 'ogg' : 'webm';
+  const chunks = [];
+  let heard = false, frames = 0, lastVoice = 0;
+  const begun = Date.now();
+  const samples = new Float32Array(analyser.fftSize);
+  try { recorder = new MediaRecorder(stream, opts); }
+  catch (e) { status('Recorder error: ' + e.message); stopVoice(); return; }
+  const current = recorder;
+  current.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  current.onstop = () => {
+    clearTimer();
+    if (!active || token !== generation) return;
+    if (!heard) {
+      if (ANDROID_TAP_TO_ASK) { void finishAndroidTapTurn('No speech detected — tap to try again'); return; }
+      beginListening(token); return;
+    }
+    const audio = new Blob(chunks, {type: current.mimeType || 'audio/webm'});
+    if (ANDROID_TAP_TO_ASK) {
+      void (async () => { await closeAndroidCaptureKeepTurn(token); await sendTurn(audio, token, ext); })();
+      return;
+    }
+    sendTurn(audio, token, ext);
+  };
+  current.onerror = () => { status('Audio recording failed'); stopVoice(); };
+  current.start(250);
+  status('🎤 Listening — speak now');
+  timer = setInterval(() => {
+    if (!active || token !== generation || current.state !== 'recording') return;
+    analyser.getFloatTimeDomainData(samples);
+    let sum = 0;
+    for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+    const rms = Math.sqrt(sum / samples.length);
+    const now = Date.now();
+    if (rms > THRESHOLD) {
+      frames++;
+      if (frames >= 2) { heard = true; lastVoice = now; }
+    } else frames = 0;
+    if ((heard && now - lastVoice > SILENCE_TIMEOUT_MS) || now - begun > MAX_RECORDING_MS) {
+      clearTimer(); current.stop();
+    }
+  }, 80);
+}
+async function startVoice(options = {}) {
+  const restoring = Boolean(options.restoring);
+  if (active) return;
+  if (ANDROID_TAP_TO_ASK && androidSpeechBusy()) {
+    status('🔊 Response is still speaking — tap again when it finishes');
+    return;
+  }
+  androidTurnCaptured = false;
+  // FIREFOX_ANDROID_POSTMESSAGE_V079
+  // Firefox Nightly Android may expose getUserMedia with the insecure-media
+  // prefs enabled even while window.isSecureContext remains false.
+  // Attempt the microphone API directly and report the actual browser error.
+  if (!navigator.mediaDevices?.getUserMedia) {
+    status(`Microphone API unavailable. origin=${location.origin} secure=${window.isSecureContext}`);
+    return;
+  }
+  if (!window.MediaRecorder) {
+    status('This browser needs MediaRecorder support.'); return;
+  }
+  try {
+    const audioConstraints = IS_ANDROID
+      ? {echoCancellation:true, noiseSuppression:true, autoGainControl:true, channelCount:{ideal:1}}
+      : {echoCancellation:true, noiseSuppression:true, autoGainControl:true};
+    stream = await navigator.mediaDevices.getUserMedia({audio:audioConstraints});
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    await ctx.resume();
+    analyser = ctx.createAnalyser(); analyser.fftSize = 2048;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    synth.cancel();
+    active = true; generation++;
+    if (ANDROID_TAP_TO_ASK) {
+      voiceWanted = false;
+      localStorage.setItem(VOICE_WANTED_KEY, 'off');
+      toggle.textContent = 'Cancel';
+    } else {
+      voiceWanted = true;
+      localStorage.setItem(VOICE_WANTED_KEY, 'on');
+      toggle.textContent = 'Voice OFF';
+    }
+    toggle.classList.add('on');
+    modeSelect.disabled = true;
+    if (IS_ANDROID) {
+      status('Loading Silero voice detector…');
+      const vadOk = await initAndroidVad(generation);
+      if (!active) return;
+      if (!vadOk) status('Silero VAD unavailable; using level detector' + (androidVadInitError ? ': ' + androidVadInitError : ''));
+    }
+    beginListening(generation);
+  } catch (e) {
+    const message = String(e.message || e);
+    await stopVoice(true);
+    status(restoring
+      ? 'Voice remembered ON — automatic microphone start was blocked. Tap Voice ON once. (' + message + ')'
+      : 'Microphone error: ' + message);
+  }
+}
+async function restoreVoiceIfWanted() {
+  if (ANDROID_TAP_TO_ASK) return;
+  if (!voiceWanted || active || voiceAutoRestoreBusy || document.visibilityState === 'hidden') return;
+  voiceAutoRestoreBusy = true;
+  status('Voice was ON — restoring microphone…');
+  try { await startVoice({restoring:true}); } finally { voiceAutoRestoreBusy = false; }
+}
+modeSelect.addEventListener('change', () => {
+  localStorage.setItem(MODE_KEY, modeSelect.value);
+  status(modeSelect.value === 'hedgedoc'
+    ? 'HedgeDoc Ask Wiki mode — highlight text and click Ask in HedgeDoc View'
+    : 'Ask Wiki mode');
+});
+toggle.addEventListener('click', () => {
+  if (ANDROID_TAP_TO_ASK) {
+    if (active) { void stopVoice(false).then(() => { toggle.textContent = '🎤 Tap to ask'; status('Question cancelled — tap to ask'); }); }
+    else void startVoice();
+    return;
+  }
+  if (active) {
+    voiceWanted = false;
+    localStorage.setItem(VOICE_WANTED_KEY, 'off');
+    void stopVoice(false);
+  } else {
+    voiceWanted = true;
+    localStorage.setItem(VOICE_WANTED_KEY, 'on');
+    void startVoice();
+  }
+});
+speakingToggle.addEventListener('click', () => {
+  speakingEnabled = !speakingEnabled;
+  localStorage.setItem(SPEAKING_KEY, speakingEnabled ? 'on' : 'off');
+  renderSpeakingToggle();
+  if (!speakingEnabled) {
+    wikiAnswerSpeechQueue.length = 0;
+    wikiAnswerSpeechBusy = false;
+    androidTtsHoldUntil = 0;
+    stopAndroidBargeMonitor();
+    setListenNowVisible(false);
+    try { if (synth) synth.cancel(); } catch (_){ }
+    currentUtterance = null;
+    scheduleAndroidMicResume();
+  } else {
+    pumpWikiAnswerSpeech();
+  }
+  if (speechStateHandler) speechStateHandler();
+  else status(speakingEnabled ? 'Speaking is ON' : 'Speaking is OFF');
+});
+// TERMINAL_SPEAK_CLIENT_V073
+let terminalSpeakSeq = 0;
+let terminalSpeakPolling = false;
+let terminalSpeakInitialised = false;
+let terminalSpeechBusy = false;
+const terminalSpeechQueue = [];
+
+function terminalSpeechChunks(text) {
+  const source = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!source) return [];
+  const chunks = [];
+  let rest = source;
+  while (rest.length > 190) {
+    let cut = rest.lastIndexOf(' ', 190);
+    if (cut < 80) cut = 190;
+    chunks.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) chunks.push(rest);
+  return chunks;
+}
+
+function pumpTerminalSpeech() {
+  if (terminalSpeechBusy || !speakingEnabled || !synth || !window.SpeechSynthesisUtterance) return;
+  const next = terminalSpeechQueue.shift();
+  if (!next) {
+    scheduleAndroidMicResume();
+    return;
+  }
+  noteAndroidTtsActivity();
+  terminalSpeechBusy = true;
+  const utterance = new SpeechSynthesisUtterance(next);
+  applySelectedTtsVoice(utterance);
+  utterance.rate = 1;
+  utterance.onend = () => {
+    terminalSpeechBusy = false;
+    pumpTerminalSpeech();
+    scheduleAndroidMicResume();
+  };
+  utterance.onerror = () => {
+    terminalSpeechBusy = false;
+    status('Terminal speech playback failed');
+    pumpTerminalSpeech();
+    scheduleAndroidMicResume();
+  };
+  try {
+    synth.resume();
+    synth.speak(utterance);
+    status(IS_ANDROID ? '🔊 Speaking — microphone closed' : '🔊 Speaking terminal text…');
+  } catch (_) {
+    terminalSpeechBusy = false;
+    status('Terminal speech playback failed');
+  }
+}
+
+function queueTerminalSpeech(text) {
+  if (!speakingEnabled) {
+    status('📥 Terminal text received — Speaking OFF');
+    return;
+  }
+  noteAndroidTtsActivity();
+  terminalSpeechQueue.push(...terminalSpeechChunks(text));
+  add('bridge', 'TERMINAL SPEAK: ' + text);
+  pumpTerminalSpeech();
+}
+
+async function pollTerminalSpeak() {
+  if (terminalSpeakPolling) return;
+  terminalSpeakPolling = true;
+  try {
+    const response = await fetch('/api/speak?after=' + encodeURIComponent(terminalSpeakSeq), {
+      cache: 'no-store'
+    });
+    if (!response.ok) return;
+    const payload = await response.json();
+    const latest = Number(payload.latest || 0);
+    if (!terminalSpeakInitialised) {
+      // Refreshing :8766 must not replay old terminal test messages.
+      terminalSpeakSeq = latest;
+      terminalSpeakInitialised = true;
+      return;
+    }
+    for (const item of Array.isArray(payload.messages) ? payload.messages : []) {
+      const seq = Number(item.seq || 0);
+      if (seq > terminalSpeakSeq) terminalSpeakSeq = seq;
+      queueTerminalSpeech(String(item.text || ''));
+    }
+    if (latest > terminalSpeakSeq) terminalSpeakSeq = latest;
+  } catch (_) {
+    // Keep the standalone voice page usable if the queue endpoint is temporarily unavailable.
+  } finally {
+    terminalSpeakPolling = false;
+  }
+}
+
+setInterval(pollTerminalSpeak, 700);
+void pollTerminalSpeak();
+
+// Android now uses the same Voice ON/OFF conversation model as Chrome.
+
+window.addEventListener('pagehide', () => { if (active) void stopVoice(true); });
+window.addEventListener('pageshow', () => { setTimeout(() => void restoreVoiceIfWanted(), 250); });
+window.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') setTimeout(() => void restoreVoiceIfWanted(), 250);
+});
+setTimeout(() => void restoreVoiceIfWanted(), 700);
+</script>
+</body></html>

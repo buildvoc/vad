@@ -1,0 +1,20 @@
+[Unit]
+Description=Standalone Whisper Two-Way Voice Iframe Test
+Requires=whisper-api.service
+After=whisper-api.service network.target
+
+[Service]
+Type=simple
+User=hp
+Group=hp
+WorkingDirectory=/data/projects/whisper/voice-test
+Environment=PATH=/data/projects/whisper/.venv/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/data/projects/whisper/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8766 --workers 1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

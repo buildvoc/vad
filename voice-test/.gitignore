@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.log
+*.xpi
+*.zip
+*.wav
+*.webm
+*.ogg
+*.mp3
+.DS_Store

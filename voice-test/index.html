@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whisper Voice – Standalone Iframe Test</title>
+<style>
+  body { margin:0; padding:1.5rem; background:#0b1220; color:#e8edf6; font:16px system-ui,sans-serif }
+  main { max-width:850px; margin:auto }
+  h1 { font-size:1.5rem; margin:0 0 .6rem }
+  p { line-height:1.5; color:#b9c4d6 }
+  iframe { width:100%; height:650px; border:1px solid #344357; border-radius:14px; background:#111d2f }
+  code { color:#94f5ce }
+</style>
+</head>
+<body><main>
+<h1>Two-way voice with Ask the wiki — isolated test</h1>
+<p>The interface below is an <strong>iframe</strong>. It uses Whisper on G3 for speech recognition and sends transcripts to the <strong>existing Ask the wiki chat</strong> via a browser-only local bridge. The Chrome extension returns the completed Ask the wiki answer here for spoken playback, then listening resumes.</p>
+<iframe src="/voice/" title="Voice conversation test" allow="microphone; autoplay"></iframe>
+<p>Use a trusted microphone context (HTTPS, localhost tunnel, or an explicit Chrome test-only secure-origin exception). The browser bridge requires the two tabs to use ports 8766 and 8180 on G3.</p>
+</main></body></html>
