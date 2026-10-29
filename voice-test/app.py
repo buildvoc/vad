@@ -287,12 +287,183 @@ def _one_line_v110(value, limit=1000):
 def _markdown_inline_v110(value, limit=1000):
     return _one_line_v110(value, limit).replace('`', "'")
 
+# WIKI_HEDGEDOC_MERMAID_THREAD_V117
+# HedgeDoc note format:
+# - one YAML frontmatter
+# - one Mermaid conversation flow
+# - rounded @hp / @memex nodes
+# - updates append new nodes inside the existing Mermaid block
+# - raw note updates are read from /api/v2/notes/<alias>/content
 
-# WIKI_HEDGEDOC_CRITIC_THREAD_V116
-# SpecDoc staging-compatible CriticMarkup conversation thread.
-# One note, one YAML frontmatter, adjacent comments form one thread.
+_MERMAID_THREAD_MARKER_V117 = '<!-- MEMEX_WIKI_MERMAID_THREAD_V117 -->'
+_MERMAID_TURN_MARKER_V117 = '%% MEMEX_WIKI_TURN_V117'
+
+
+def _mermaid_escape_v117(value):
+    return (
+        str(value or '')
+        .replace('&', '&amp;')
+        .replace('"', '&quot;')
+        .replace('<', '&lt;')
+        .replace('>', '&gt;')
+    )
+
+
+def _mermaid_inline_v117(value, limit=4000):
+    return _mermaid_escape_v117(
+        ' '.join(str(value or '').replace('\r', ' ').replace('\n', ' ').split())[:limit]
+    )
+
+
+def _mermaid_answer_v117(value):
+    """Convert ordinary Wiki Markdown into safe Mermaid HTML-label text."""
+    source = str(value or '').replace('\r\n', '\n').replace('\r', '\n')
+    rendered = []
+
+    for raw in source.split('\n'):
+        stripped = raw.strip()
+
+        if not stripped:
+            rendered.append('')
+            continue
+
+        bullet = False
+        if stripped.startswith(('- ', '* ')):
+            bullet = True
+            stripped = stripped[2:].strip()
+
+        safe = _mermaid_escape_v117(stripped)
+        safe = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', safe)
+        safe = re.sub(r'__(.+?)__', r'<b>\1</b>', safe)
+        safe = re.sub(r'`([^`]+)`', r'<code>\1</code>', safe)
+
+        if bullet:
+            safe = '• ' + safe
+
+        rendered.append(safe)
+
+    compact = []
+    blank = False
+    for line in rendered:
+        if line:
+            compact.append(line)
+            blank = False
+        elif not blank:
+            compact.append('')
+            blank = True
+
+    while compact and not compact[-1]:
+        compact.pop()
+
+    return '<br/>'.join(compact)
+
+
+def _yaml_quote_v117(value):
+    return '"' + str(value or '').replace('\\', '\\\\').replace('"', '\\"').replace(
+        '\r', ' '
+    ).replace('\n', ' ') + '"'
+
+
+def _mermaid_turn_nodes_v117(index, question, answer, turn_sha):
+    hp = _mermaid_inline_v117(question, _WIKI_NOTE_MAX_QUESTION_V110)
+    memex = _mermaid_answer_v117(answer)
+
+    return (
+        f'    {_MERMAID_TURN_MARKER_V117} {turn_sha}\n'
+        f'    HP{index}("🟨 <b>@hp</b><br/>{hp}")\n\n'
+        f'    M{index}("🟦 <b>@memex</b><br/><br/>{memex}")\n'
+    )
+
+
+def _build_mermaid_note_v117(note_title, created_iso, input_mode, question, answer, turn_sha):
+    return (
+        '---\n'
+        'type: document\n'
+        'okf_type: Concept\n'
+        f'title: {_yaml_quote_v117(note_title)}\n'
+        'description: "Conversation captured from Memex Wiki Ask responses."\n'
+        'tags: [memex, wiki, conversation]\n'
+        'status: draft\n'
+        'sources: []\n'
+        'provenance: "CriticMarkup conversation generated from Ask Wiki responses."\n'
+        f'created: {_yaml_quote_v117(created_iso)}\n'
+        'source: "Memex Wiki"\n'
+        f'input_mode: {_yaml_quote_v117(input_mode)}\n'
+        '---\n\n'
+        f'# {note_title}\n\n'
+        '## Conversation\n\n'
+        f'{_MERMAID_THREAD_MARKER_V117}\n'
+        '```mermaid\n'
+        '%%{init: {\n'
+        '  "flowchart": {\n'
+        '    "useMaxWidth": true,\n'
+        '    "htmlLabels": true,\n'
+        '    "curve": "linear",\n'
+        '    "nodeSpacing": 28,\n'
+        '    "rankSpacing": 34,\n'
+        '    "wrappingWidth": 900\n'
+        '  },\n'
+        '  "themeVariables": {\n'
+        '    "fontSize": "16px"\n'
+        '  }\n'
+        '}}%%\n'
+        'flowchart TB\n\n'
+        + _mermaid_turn_nodes_v117(1, question, answer, turn_sha)
+        + '\n'
+        '    HP1 --> M1\n\n'
+        '    classDef hp fill:#fff6d6,stroke:#e5aa00,stroke-width:2px,color:#222\n'
+        '    classDef memex fill:#eaf5ff,stroke:#3194dc,stroke-width:2px,color:#222\n\n'
+        '    class HP1 hp\n'
+        '    class M1 memex\n\n'
+        '    linkStyle default stroke:#7a7a7a,stroke-width:2px\n'
+        '```\n'
+    )
+
+
+def _append_mermaid_turn_v117(markdown, question, answer, turn_sha):
+    if _MERMAID_THREAD_MARKER_V117 not in markdown:
+        raise HTTPException(
+            status_code=409,
+            detail='Existing note is not a Mermaid v117 conversation; create a new HedgeDoc note',
+        )
+
+    duplicate_marker = f'{_MERMAID_TURN_MARKER_V117} {turn_sha}'
+    if duplicate_marker in markdown:
+        return markdown, True
+
+    indexes = [
+        int(value)
+        for value in re.findall(r'(?m)^\s*HP(\d+)\s*\(', markdown)
+    ]
+    if not indexes:
+        raise HTTPException(
+            status_code=409,
+            detail='Mermaid conversation contains no @hp turn nodes',
+        )
+
+    previous = max(indexes)
+    index = previous + 1
+
+    anchor = '    linkStyle default stroke:#7a7a7a,stroke-width:2px'
+    if anchor not in markdown:
+        raise HTTPException(
+            status_code=409,
+            detail='Mermaid conversation update anchor is missing',
+        )
+
+    addition = (
+        _mermaid_turn_nodes_v117(index, question, answer, turn_sha)
+        + f'\n    M{previous} --> HP{index}\n'
+        + f'    HP{index} --> M{index}\n\n'
+        + f'    class HP{index} hp\n'
+        + f'    class M{index} memex\n\n'
+    )
+
+    return markdown.replace(anchor, addition + anchor, 1), False
+
+
 @app.post('/api/wiki-note')
-async def create_or_update_wiki_hedgedoc_note_v116(payload: dict):
+async def create_or_update_wiki_hedgedoc_note_v117(payload: dict):
     question = str(payload.get('question') or '').strip()
     answer = str(payload.get('answer') or '').strip()
     input_mode = _one_line_v110(payload.get('input_mode') or 'wiki', 80)
@@ -309,34 +480,27 @@ async def create_or_update_wiki_hedgedoc_note_v116(payload: dict):
     if len(answer) > _WIKI_NOTE_MAX_ANSWER_V110:
         raise HTTPException(status_code=413, detail='Wiki answer is too long')
 
-    def critic_safe_v116(value):
-        return (
-            str(value)
-            .replace('{>>', '{ >>')
-            .replace('<<}', '<< }')
-        )
-
     base_url, token, public_url = _hedgedoc_config_v110()
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat().replace('+00:00', 'Z')
     answer_sha = hashlib.sha256(answer.encode('utf-8')).hexdigest()
+    turn_sha = hashlib.sha256(
+        (question + '\0' + answer).encode('utf-8')
+    ).hexdigest()[:20]
 
     token_headers = {
         'Authorization': f'Bearer {token}',
-        'Accept': 'application/json',
+        'Accept': 'text/markdown',
     }
     markdown_headers = {
-        **token_headers,
+        'Authorization': f'Bearer {token}',
+        'Accept': 'application/json',
         'Content-Type': 'text/markdown',
     }
 
-    critic_pair = (
-        f'{{>>@hp: {critic_safe_v116(question)}<<}}'
-        f'{{>>@memex: {critic_safe_v116(answer)}<<}}'
-    )
-
     action = 'created'
     created_iso = now_iso
+    duplicate = False
 
     if requested_alias:
         if not re.fullmatch(r'memex-wiki-[a-z0-9-]{1,170}', requested_alias):
@@ -350,13 +514,13 @@ async def create_or_update_wiki_hedgedoc_note_v116(payload: dict):
                 timeout=httpx.Timeout(15.0, connect=5.0)
             ) as client:
                 check = await client.get(
-                    base_url + f'/api/v2/notes/{alias}',
+                    base_url + f'/api/v2/notes/{alias}/content',
                     headers=token_headers,
                 )
         except httpx.HTTPError as exc:
             raise HTTPException(
                 status_code=502,
-                detail='HedgeDoc note lookup failed'
+                detail='HedgeDoc raw note lookup failed'
             ) from exc
 
         if check.status_code == 404:
@@ -368,41 +532,19 @@ async def create_or_update_wiki_hedgedoc_note_v116(payload: dict):
             raise HTTPException(
                 status_code=502,
                 detail=(
-                    f'HedgeDoc lookup failed: HTTP {check.status_code}: '
+                    f'HedgeDoc raw note lookup failed: HTTP {check.status_code}: '
                     f'{check.text[:500]}'
                 ),
             )
 
-        try:
-            existing = check.json()
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=502,
-                detail='HedgeDoc lookup returned invalid JSON'
-            ) from exc
-
-        existing_content = str(existing.get('content') or '')
-        metadata = existing.get('metadata') or {}
-        created_iso = original_created or _one_line_v110(
-            metadata.get('createdAt') or metadata.get('created') or '',
-            80,
-        ) or now_iso
-
-        if '<!-- MEMEX_WIKI_CRITIC_THREAD_V116 -->' not in existing_content:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    'Existing note is not a v116 CriticMarkup conversation; '
-                    'reload the voice page and create a new HedgeDoc note'
-                ),
-            )
-
-        markdown = existing_content.rstrip()
-
-        duplicate = markdown.endswith(critic_pair)
-        if not duplicate:
-            markdown += critic_pair
-        markdown += '\n'
+        existing_content = check.text
+        created_iso = original_created or now_iso
+        markdown, duplicate = _append_mermaid_turn_v117(
+            existing_content,
+            question,
+            answer,
+            turn_sha,
+        )
 
     else:
         alias = (
@@ -416,30 +558,15 @@ async def create_or_update_wiki_hedgedoc_note_v116(payload: dict):
 
         title_question = _one_line_v110(question, 140)
         note_title = f'Memex Wiki conversation — {title_question}'
-        yaml_title = note_title.replace('\\', '\\\\').replace('"', '\\"')
 
-        markdown = (
-            '---\n'
-            'type: document\n'
-            'okf_type: Concept\n'
-            f'title: "{yaml_title}"\n'
-            'description: ""\n'
-            'tags: []\n'
-            'status: draft\n'
-            'sources: []\n'
-            '---\n\n'
-            f'# {note_title}\n\n'
-            '> **Memex Wiki provenance:** CriticMarkup conversation generated '
-            'from Ask Wiki responses.\n'
-            f'> **Created:** `{created_iso}`\n'
-            '> **Source:** `Memex Wiki`\n'
-            f'> **Input mode:** `{_markdown_inline_v110(input_mode, 80)}`\n\n'
-            '## Conversation\n\n'
-            '<!-- MEMEX_WIKI_CRITIC_THREAD_V116 -->\n'
-            + critic_pair
-            + '\n'
+        markdown = _build_mermaid_note_v117(
+            note_title,
+            created_iso,
+            input_mode,
+            question,
+            answer,
+            turn_sha,
         )
-        duplicate = False
 
     route_path = f'/api/v2/notes/{alias}'
     method = 'PUT' if action == 'updated' else 'POST'
@@ -479,6 +606,6 @@ async def create_or_update_wiki_hedgedoc_note_v116(payload: dict):
         'updated': now_iso if action == 'updated' else None,
         'answer_sha256': answer_sha,
         'response_id': response_id,
-        'thread_format': 'critic-markup-v116',
+        'thread_format': 'mermaid-v117',
         'duplicate': bool(duplicate),
     }
